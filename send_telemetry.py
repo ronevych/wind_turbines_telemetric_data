@@ -4,6 +4,23 @@ import random
 import datetime
 import threading
 from azure.iot.device import IoTHubDeviceClient
+import redis
+from dotenv import load_dotenv
+
+# Завантаження .env
+load_dotenv()
+
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = int(os.getenv("REDIS_PORT"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+
+# Redis клієнт
+redis_client = redis.StrictRedis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    password=REDIS_PASSWORD,
+    ssl=True
+)
 
 def generate_new_value(prev_value):
     change = prev_value * random.uniform(-0.1, 0.1)
@@ -26,6 +43,7 @@ def send_telemetry(device_id, connection_string):
     try:
         client.connect()
         wind_speed = random.uniform(4.0, 8.0)
+        last_redis_time = 0
 
         while True:
             wind_speed = generate_new_value(wind_speed)
@@ -38,6 +56,17 @@ def send_telemetry(device_id, connection_string):
             msg = str(telemetry).replace("'", '"')
             print(f"[{device_id}] → Надсилає: {msg}")
             client.send_message(msg)
+
+            # Зберігаємо в Redis раз на 60 секунд
+            now = time.time()
+            if now - last_redis_time >= 60:
+                redis_key = f"telemetry:{device_id}"
+                try:
+                    redis_client.set(redis_key, msg)
+                    print(f"[{device_id}] 💾 Збережено в Redis")
+                    last_redis_time = now
+                except Exception as e:
+                    print(f"[{device_id}] ❌ Redis помилка: {e}")
 
             delay = random.randint(20, 56)
             time.sleep(delay)
