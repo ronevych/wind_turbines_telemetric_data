@@ -22,9 +22,9 @@ redis_client = redis.StrictRedis(
     ssl=True
 )
 
-def generate_new_value(prev_value):
-    change = prev_value * random.uniform(-0.1, 0.1)
-    new_value = max(3.0, min(15.0, prev_value + change))
+def generate_new_value(prev_value, min_val, max_val, fluctuation=0.1):
+    change = prev_value * random.uniform(-fluctuation, fluctuation)
+    new_value = max(min_val, min(max_val, prev_value + change))
     return round(new_value, 2)
 
 def load_devices(filename="devices.txt"):
@@ -42,15 +42,28 @@ def send_telemetry(device_id, connection_string):
 
     try:
         client.connect()
+
+        # Початкові значення
         wind_speed = random.uniform(4.0, 8.0)
+        wind_direction = random.randint(0, 360)
+        temperature = random.uniform(-5.0, 25.0)
+        humidity = random.uniform(30.0, 90.0)
         last_redis_time = 0
 
         while True:
-            wind_speed = generate_new_value(wind_speed)
+            # Генерація нових значень
+            wind_speed = generate_new_value(wind_speed, 3.0, 15.0)
+            wind_direction = (wind_direction + random.randint(-5, 5)) % 360
+            temperature = generate_new_value(temperature, -10.0, 40.0)
+            humidity = generate_new_value(humidity, 20.0, 100.0)
+
             telemetry = {
                 "turbine_id": device_id,
                 "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-                "wind_speed": wind_speed
+                "wind_speed": wind_speed,
+                "wind_direction": wind_direction,
+                "temperature": temperature,
+                "humidity": humidity
             }
 
             msg = str(telemetry).replace("'", '"')
